@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>こんだてノート — 買い物リスト</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+      background: #FFF8F2;
+      color: #333333;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #FFF8F2;
+      padding: 20px 16px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #EEEEEE;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #E07A52;
+    }
+
+    .app-banner {
+      background: white;
+      border-radius: 12px;
+      margin: 16px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .app-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: #E07A52;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .app-info { flex: 1; }
+    .app-info strong { font-size: 14px; display: block; }
+    .app-info span { font-size: 12px; color: #888888; }
+
+    .app-store-btn {
+      background: #E07A52;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .stats {
+      margin: 0 16px 8px;
+      font-size: 13px;
+      color: #888888;
+    }
+
+    .stats span { color: #E07A52; font-weight: 600; }
+
+    .category-section { margin: 0 16px 8px; }
+
+    .category-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 12px 0 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #888888;
+    }
+
+    .category-icon { font-size: 16px; }
+
+    .item-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #EEEEEE;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .item-row:last-child { border-bottom: none; }
+
+    .checkbox {
+      width: 22px;
+      height: 22px;
+      border: 2px solid #BBBBBB;
+      border-radius: 4px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .item-row.checked .checkbox {
+      background: #E07A52;
+      border-color: #E07A52;
+    }
+
+    .item-row.checked .checkbox::after {
+      content: '✓';
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .item-name {
+      flex: 1;
+      font-size: 15px;
+      transition: all 0.15s;
+    }
+
+    .item-row.checked .item-name {
+      color: #BBBBBB;
+      text-decoration: line-through;
+    }
+
+    .item-qty {
+      font-size: 13px;
+      color: #888888;
+    }
+
+    .error {
+      text-align: center;
+      padding: 60px 24px;
+      color: #888888;
+    }
+
+    .error h2 { font-size: 18px; color: #333; margin-bottom: 8px; }
+
+    .footer {
+      text-align: center;
+      padding: 32px 16px;
+      font-size: 12px;
+      color: #BBBBBB;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span style="font-size:24px">🍳</span>
+    <h1>こんだてノート</h1>
+  </header>
+
+  <div id="content">
+    <p style="text-align:center;padding:40px;color:#888">読み込み中...</p>
+  </div>
+
+  <div class="footer">こんだてノート — 週1まとめ買い族の献立アプリ</div>
+
+  <script>
+    const CATEGORIES = [
+      { label: '肉', icon: '🥩' },
+      { label: '魚', icon: '🐟' },
+      { label: '野菜', icon: '🥦' },
+      { label: '調味料', icon: '🍶' },
+      { label: 'その他', icon: '🛍' },
+    ];
+
+    const STORE_URL = 'https://apps.apple.com/jp/app/id6745189946';
+
+    function getCheckedKey(hash) {
+      return 'kondate_checked_' + hash.slice(0, 16);
+    }
+
+    function loadChecked(key) {
+      try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; }
+    }
+
+    function saveChecked(key, state) {
+      try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
+    }
+
+    function render(items) {
+      const hash = location.hash;
+      const checkedKey = getCheckedKey(hash);
+      let checked = loadChecked(checkedKey);
+
+      const grouped = {};
+      items.forEach(item => {
+        const c = item.c ?? 4;
+        if (!grouped[c]) grouped[c] = [];
+        grouped[c].push(item);
+      });
+
+      const checkedCount = () => Object.values(checked).filter(Boolean).length;
+
+      function buildHTML() {
+        const total = items.length;
+        const done = checkedCount();
+
+        let html = `
+          <div class="app-banner">
+            <div class="app-icon">🍳</div>
+            <div class="app-info">
+              <strong>こんだてノート</strong>
+              <span>App Store からインストール</span>
+            </div>
+            <a href="${STORE_URL}" class="app-store-btn">入手</a>
+          </div>
+          <p class="stats">合計 <span>${total}</span>品（${done}品 購入済み）</p>
+        `;
+
+        CATEGORIES.forEach((cat, idx) => {
+          const catItems = grouped[idx];
+          if (!catItems || catItems.length === 0) return;
+
+          html += `<div class="category-section">
+            <div class="category-header">
+              <span class="category-icon">${cat.icon}</span>
+              ${cat.label} ${catItems.length}品
+            </div>`;
+
+          catItems.forEach((item, i) => {
+            const itemKey = `${idx}_${i}`;
+            const isChecked = checked[itemKey] || false;
+            html += `
+              <div class="item-row${isChecked ? ' checked' : ''}" data-key="${itemKey}">
+                <div class="checkbox"></div>
+                <span class="item-name">${escapeHtml(item.n)}</span>
+                ${item.q ? `<span class="item-qty">${escapeHtml(item.q)}</span>` : ''}
+              </div>`;
+          });
+
+          html += '</div>';
+        });
+
+        return html;
+      }
+
+      function refresh() {
+        document.getElementById('content').innerHTML = buildHTML();
+        document.querySelectorAll('.item-row').forEach(row => {
+          row.addEventListener('click', () => {
+            const key = row.dataset.key;
+            checked[key] = !checked[key];
+            saveChecked(checkedKey, checked);
+            refresh();
+          });
+        });
+      }
+
+      refresh();
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function showError() {
+      document.getElementById('content').innerHTML = `
+        <div class="error">
+          <h2>リストを読み込めませんでした</h2>
+          <p>URLが正しいか確認してください。</p>
+        </div>`;
+    }
+
+    // メイン処理
+    (function() {
+      const hash = location.hash; // "#data=BASE64"
+      if (!hash.startsWith('#data=')) { showError(); return; }
+
+      try {
+        const b64 = hash.slice(6);
+        const json = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
+        const data = JSON.parse(json);
+        if (!data.items || !Array.isArray(data.items)) throw new Error();
+        render(data.items);
+      } catch (e) {
+        showError();
+      }
+    })();
+  </script>
+</body>
+</html>
