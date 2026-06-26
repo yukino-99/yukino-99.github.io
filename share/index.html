@@ -288,7 +288,8 @@
 
       try {
         const b64 = hash.slice(6);
-        const json = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
+        const bytes = Uint8Array.from(atob(b64.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+        const json = new TextDecoder('utf-8').decode(bytes);
         const data = JSON.parse(json);
         if (!data.items || !Array.isArray(data.items)) throw new Error();
         render(data.items);
